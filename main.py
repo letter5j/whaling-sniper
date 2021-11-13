@@ -3,7 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from crawl_router import CrawlRouter
-
+import nest_asyncio
+nest_asyncio.apply()
 app = FastAPI()
 origins = [
     "*",
