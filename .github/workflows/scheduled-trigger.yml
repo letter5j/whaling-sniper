@@ -1,4 +1,4 @@
-name: Trigger Site Rebuild on a CRON Schedule
+name: Trigger EndPoint Job on a CRON Schedule
 
 on:
   schedule:
@@ -20,8 +20,8 @@ jobs:
         # Hit the webhook endpoint to rebuild  from the "main" branch
         run: |
           curl --request POST \
-            --url ${{ env.ENDPOINT }} \
+            --url ${{ secrets.ENDPOINT }} \
             --header 'Content-Type: application/json' \
             --data '{
-            "username": ${{ env.TARGET }}
+            "username": ${{ secrets.TARGET }}
           }'
