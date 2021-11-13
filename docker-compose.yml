@@ -1,0 +1,10 @@
+services:
+  sniper:
+    image: letter5j/whaling-sniper:0.0.1
+    ports:
+      - 8080:8000
+    environment:
+      - OUTPUT_BASE_PATH=./
+      - STORAGE_SERVICE_ENDPOINT=https://test.com/
+      - DELTA_MINUTES_BEFORE_NOW=5
+      - TZ=Asia/Taipei
