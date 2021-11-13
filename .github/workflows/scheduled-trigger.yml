@@ -1,0 +1,27 @@
+name: Trigger Site Rebuild on a CRON Schedule
+
+on:
+  schedule:
+    # Runs "every 5 minutes" (see https://crontab.guru)
+    - cron: '*/5 * * * *'
+jobs:
+  build:
+    name: Trigger Create Job
+    runs-on: ubuntu-latest
+    steps:
+      - uses: szenius/set-timezone@v1.0
+        with:
+          timezoneLinux: "Asia/Taipei"
+          timezoneMacos: "Asia/Taipei"
+          timezoneWindows: "Taipei Standard Time"
+      - name: Set current date as env variable
+        run: echo "NOW::$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+      - name: cURL request
+        # Hit the webhook endpoint to rebuild  from the "main" branch
+        run: |
+          curl --request POST \
+            --url ${{ env.ENDPOINT }} \
+            --header 'Content-Type: application/json' \
+            --data '{
+            "username": ${{ env.TARGET }}
+          }'
