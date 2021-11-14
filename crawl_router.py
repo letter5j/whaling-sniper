@@ -1,20 +1,15 @@
 import asyncio
 import datetime
-import io
-import json
-import os.path
-import sys
-import uuid
-from typing import List
+from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 import aiohttp
-import twint
 from fastapi import APIRouter, HTTPException
 from starlette import status
+from tweepy import Client, User, errors, Tweet, Response
 
-from settings import Settings
 from model.crawl_job import CrawlJobCreateDto
-from model.tweet import Tweet
+from settings import Settings
 
 setting = Settings()
 CrawlRouter = APIRouter()
@@ -34,52 +29,69 @@ async def send_to_storage(tweets: List[Tweet]):
 @CrawlRouter.post("/crawl", status_code=status.HTTP_201_CREATED)
 async def create_crawl_job(crawl_job_create_dto: CrawlJobCreateDto):
     print(
-        f"User: {crawl_job_create_dto.username}, Start Date: {crawl_job_create_dto.start_date}, End Date: {crawl_job_create_dto.end_date}")
-
-    # Configure
-    id: str = str(uuid.uuid4())
-    output_path: str = os.path.join(setting.OUTPUT_BASE_PATH, id + ".json")
-    twint_config = twint.Config()
-    twint_config.Username = crawl_job_create_dto.username
-    twint_config.Since = crawl_job_create_dto.start_date
-    twint_config.Until = crawl_job_create_dto.end_date
-    if crawl_job_create_dto.start_date is None and crawl_job_create_dto.end_date is None:
-        now: datetime.datetime = datetime.datetime.now()
-        twint_config.Until = now.strftime("%Y-%m-%d %H:%M:%S")
-        twint_config.Since = (now - datetime.timedelta(minutes=setting.DELTA_MINUTES_BEFORE_NOW)).strftime(
-            "%Y-%m-%d %H:%M:%S")
-
-    # "2021-11-08 14:20:00"
-
-    print(f"Query: {twint_config.Username}, Since: {twint_config.Until}, Until: {twint_config.Since}")
-    twint_config.Store_json = True
-    twint_config.Output = output_path
-
-    # Run
-    print("Starting search.")
-    twint.run.Search(twint_config)
-    tweets: List[Tweet] = list()
+        f"User: {crawl_job_create_dto.username}, "
+        f"Start Date: {crawl_job_create_dto.start_date}, "
+        f"End Date: {crawl_job_create_dto.end_date}")
+    client = Client(
+        bearer_token=setting.TWITTER_BEARER_TOKEN)
+    print(f"Start to get user id by username: {crawl_job_create_dto.username}")
+    user: Optional[User] = None
     try:
-        with io.open(output_path, 'rb+') as f:
-            while line := f.readline():
-                tweets.append(Tweet(**json.loads(line)))
-    except RuntimeError as err:
-        print(f"Unexpected error: {sys.exc_info()[0]} error: {err}.")
+        user = client.get_user(username=crawl_job_create_dto.username)[0]
+    except errors.BadRequest as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Error: {err}.")
+    except errors.Unauthorized as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Parsing search result Unexpected error: {sys.exc_info()[0]} error: {err}.")
-    except OSError as err:
-        print(f"OS error: {sys.exc_info()[0]} error: {err}.")
-        print("Probably no new Posts.")
+                            detail=f"Error: {err}.")
     finally:
-        print("Parsing search result finish.")
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"Username {crawl_job_create_dto.username} not found.")
+    print(f"UserName: {user.username}, User Show Name: {user.name}, User Id: {user.id}")
+
+    utc_timezone = ZoneInfo('UTC')
+    local_timezone = ZoneInfo('Asia/Taipei')
+    end_time: datetime.datetime
+    start_time: datetime.datetime
+
+    end_time = datetime.datetime.strptime(
+        crawl_job_create_dto.end_date, '%Y-%m-%d %H:%M:%S') \
+        if crawl_job_create_dto.end_date else datetime.datetime.now()
+
+    start_time = datetime.datetime.strptime(
+        crawl_job_create_dto.start_date, '%Y-%m-%d %H:%M:%S') \
+        if crawl_job_create_dto.start_date else end_time - datetime.timedelta(minutes=setting.DELTA_MINUTES_BEFORE_NOW)
+
+    start_localtime = start_time.replace(tzinfo=local_timezone)
+    end_localtime = end_time.replace(tzinfo=local_timezone)
+    start_utctime = start_time.astimezone(utc_timezone)
+    end_utctime = end_time.astimezone(utc_timezone)
+    print(
+        f"Query "
+        f"since: {start_localtime.isoformat(timespec='seconds')}, "
+        f"until: {end_localtime.isoformat(timespec='seconds')}")
+    print(
+        f"Query UTC "
+        f"since: {start_utctime.isoformat(timespec='seconds')}, "
+        f"until: {end_utctime.isoformat(timespec='seconds')}")
+
     try:
-        print("Send to Storage Service.")
+        response: Response = client.get_users_tweets(id=user.id, start_time=start_utctime.isoformat(timespec='seconds'),
+                                                     end_time=end_utctime.isoformat(timespec='seconds'),
+                                                     tweet_fields=["id", "text", "created_at"]
+                                                     )
+    except errors.BadRequest as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Error: {err}.")
+    except errors.Unauthorized as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Error: {err}.")
+    tweets: Optional[List[Tweet]] = response.data
+
+    if tweets is None:
+        tweets = list()
+        print("No tweets available.")
+    if setting.STORAGE_SERVICE_ENDPOINT:
         await send_to_storage(tweets)
-    except RuntimeError as err:
-        print(f"Unexpected error: {sys.exc_info()[0]} error: {err}.")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Send to Storage Service Unexpected error: {sys.exc_info()[0]} error: {err}.")
-    finally:
-        print("Finish Request.")
-    print(f"Tweets: {tweets}")
     return tweets

@@ -11,8 +11,6 @@ COPY --chown=worker:worker ./requirements.txt /app/requirements.txt
 
 RUN pip install --user --no-cache-dir --upgrade -r /app/requirements.txt
 
-RUN pip install --user --upgrade git+https://github.com/twintproject/twint.git@origin/master#egg=twint
-
 COPY --chown=worker:worker ./ /app
 
 
