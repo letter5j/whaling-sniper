@@ -4,11 +4,13 @@ from typing import List, Optional
 from zoneinfo import ZoneInfo
 
 import aiohttp
+import tweepy
 from fastapi import APIRouter, HTTPException
 from starlette import status
-from tweepy import Client, User, errors, Tweet, Response
+from tweepy import Client, User, errors, Response
 
 from model.crawl_job import CrawlJobCreateDto
+from model.tweet import Tweet
 from settings import Settings
 
 setting = Settings()
@@ -26,7 +28,7 @@ async def send_to_storage(tweets: List[Tweet]):
         await asyncio.gather(*tasks)
 
 
-@CrawlRouter.post("/crawl", status_code=status.HTTP_201_CREATED)
+@CrawlRouter.post("/crawl", status_code=status.HTTP_201_CREATED, response_model=List[Tweet])
 async def create_crawl_job(crawl_job_create_dto: CrawlJobCreateDto):
     print(
         f"User: {crawl_job_create_dto.username}, "
@@ -87,11 +89,13 @@ async def create_crawl_job(crawl_job_create_dto: CrawlJobCreateDto):
     except errors.Unauthorized as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Error: {err}.")
-    tweets: Optional[List[Tweet]] = response.data
-
-    if tweets is None:
-        tweets = list()
+    response_tweets: Optional[List[tweepy.Tweet]] = response.data
+    tweets: List[Tweet] = list()
+    if response_tweets is None:
+        response_tweets = list()
         print("No tweets available.")
+    for tweet in response_tweets:
+        tweets.append(Tweet(id=tweet.id, created_at=tweet.created_at.replace(tzinfo=local_timezone), text=tweet.text))
     if setting.STORAGE_SERVICE_ENDPOINT:
         await send_to_storage(tweets)
     return tweets
