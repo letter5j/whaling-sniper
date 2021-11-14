@@ -58,21 +58,19 @@ async def create_crawl_job(crawl_job_create_dto: CrawlJobCreateDto):
     start_time: datetime.datetime
 
     end_time = datetime.datetime.strptime(
-        crawl_job_create_dto.end_date, '%Y-%m-%d %H:%M:%S') \
-        if crawl_job_create_dto.end_date else datetime.datetime.now()
+        crawl_job_create_dto.end_date, '%Y-%m-%d %H:%M:%S').replace(tzinfo=local_timezone) \
+        if crawl_job_create_dto.end_date else datetime.datetime.now().astimezone(local_timezone)
 
     start_time = datetime.datetime.strptime(
-        crawl_job_create_dto.start_date, '%Y-%m-%d %H:%M:%S') \
+        crawl_job_create_dto.start_date, '%Y-%m-%d %H:%M:%S').replace(tzinfo=local_timezone) \
         if crawl_job_create_dto.start_date else end_time - datetime.timedelta(minutes=setting.DELTA_MINUTES_BEFORE_NOW)
 
-    start_localtime = start_time.replace(tzinfo=local_timezone)
-    end_localtime = end_time.replace(tzinfo=local_timezone)
     start_utctime = start_time.astimezone(utc_timezone)
     end_utctime = end_time.astimezone(utc_timezone)
     print(
         f"Query "
-        f"since: {start_localtime.isoformat(timespec='seconds')}, "
-        f"until: {end_localtime.isoformat(timespec='seconds')}")
+        f"since: {start_time.isoformat(timespec='seconds')}, "
+        f"until: {end_time.isoformat(timespec='seconds')}")
     print(
         f"Query UTC "
         f"since: {start_utctime.isoformat(timespec='seconds')}, "
