@@ -14,10 +14,8 @@ jobs:
           timezoneLinux: "Asia/Taipei"
           timezoneMacos: "Asia/Taipei"
           timezoneWindows: "Taipei Standard Time"
-      - name: Set current date as env variable
-        run: echo "NOW::$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
       - name: cURL request
-        # Hit the webhook endpoint to rebuild  from the "main" branch
+        # Hit the webhook endpoint to trigger job from the "main" branch
         run: |
           curl --request POST \
             --url ${{ secrets.ENDPOINT }} \
