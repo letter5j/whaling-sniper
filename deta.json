@@ -1,0 +1,26 @@
+{
+    "name": "whaling-sniper",
+    "description": "sniper",
+    "project": "whaling",
+    "runtime": "python3.9",
+    "env": [
+        {
+            "key": "TWITTER_BEARER_TOKEN",
+            "description": "Twitter V2 Bearer Token",
+            "value": "TOKEN",
+            "required": true
+        },
+        {
+            "key": "STORAGE_SERVICE_ENDPOINT",
+            "description": "Web hook for job done",
+            "value": "https://httpbin.com/post",
+            "required": false
+        },
+        {
+            "key": "DELTA_MINUTES_BEFORE_NOW",
+            "description": "Cron Job process period of start time",
+            "value": "5",
+            "required": false
+        }
+    ]
+}
